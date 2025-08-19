@@ -1,0 +1,679 @@
+"""1. Dataset Preparation
+Import the cyberbullying dataset (e.g., from Kaggle or other public sources).
+Explore the dataset structure, label distribution, and check for class imbalance.
+Clean the dataset by removing:
+Missing or null values
+Duplicate entries
+Irrelevant content (e.g., ads, unrelated text)
+"""
+import pandas as pd
+
+# Load dataset (replace with your dataset path or URL)
+df = pd.read_csv("https://raw.githubusercontent.com/ramizcihe/week4-cihe240058/refs/heads/main/cyberbullying_tweets.csv")
+
+# Show first 5 rows
+df.head()
+print(df.columns)
+df['cyberbullying_type'].value_counts()
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+# Remove rows with null values
+df = df.dropna()
+
+print("After removing nulls:", df.shape)
+# Remove duplicate rows
+df = df.drop_duplicates()
+
+print("After removing duplicates:", df.shape)
+df['tweet_text']
+# Correct for your dataset
+X = df['tweet_text']
+y = df['cyberbullying_type']
+"""
+2. Text Preprocessing
+Lowercase all text.
+Remove stopwords, punctuation, numbers, and special characters.
+Tokenize the text into words.
+Apply stemming or lemmatization.
+Optionally remove very rare or very frequent words to reduce noise
+"""
+['tweet_text', 'cyberbullying_type']
+df['tweet_text']          # ✅ correct features
+df['cyberbullying_type']  # ✅ correct labels
+import nltk
+nltk.download('punkt')
+nltk.download('punkt_tab')  # new requirement in latest NLTK
+nltk.download('stopwords')
+nltk.download('wordnet')
+import pandas as pd
+import re
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from collections import Counter
+
+# Download NLTK resources (only first time)
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('wordnet')
+nltk.download('omw-1.4')
+
+# 1. Lowercase
+df['clean_text'] = df['tweet_text'].str.lower()
+
+# 2. Remove punctuation, numbers, special characters
+df['clean_text'] = df['clean_text'].apply(lambda x: re.sub(r'[^a-z\s]', '', x))
+
+# 3. Tokenize
+df['tokens'] = df['clean_text'].apply(word_tokenize)
+
+# 4. Remove stopwords
+stop_words = set(stopwords.words('english'))
+df['tokens'] = df['tokens'].apply(lambda x: [word for word in x if word not in stop_words])
+
+# 5. Lemmatization
+lemmatizer = WordNetLemmatizer()
+df['tokens'] = df['tokens'].apply(lambda x: [lemmatizer.lemmatize(word) for word in x])
+
+# 6. (Optional) Remove rare and frequent words
+all_words = [word for tokens in df['tokens'] for word in tokens]
+word_freq = Counter(all_words)
+
+rare_thresh = 2      # words appearing less than 2 times
+freq_thresh = 0.9    # words appearing in >90% of documents
+
+rare_words = {w for w, c in word_freq.items() if c < rare_thresh}
+total_docs = len(df)
+freq_words = {w for w, c in word_freq.items() if c/total_docs > freq_thresh}
+
+df['tokens'] = df['tokens'].apply(lambda x: [word for word in x if word not in rare_words and word not in freq_words])
+
+# 7. (Optional) Reconstruct tokens back into cleaned sentence
+df['final_text'] = df['tokens'].apply(lambda x: " ".join(x))
+
+# Check sample
+print(df[['tweet_text','final_text','cyberbullying_type']].head())
+"""
+3. Feature Extraction & Selection
+Represent text as numerical features using:
+TF-IDF vectors (word-level, n-grams, or character-level)
+Word embeddings (Word2Vec, GloVe, FastText)
+Transformer-based embeddings (BERT, DistilBERT)
+Select relevant features (e.g., Chi-Square test, mutual information) to improve efficiency.
+"""
+# TF-IDF Vectorization
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+# Word-level TF-IDF
+tfidf = TfidfVectorizer(max_features=5000, ngram_range=(1,2))  # unigrams + bigrams
+X_tfidf = tfidf.fit_transform(df['final_text'])
+y = df['cyberbullying_type']
+
+print("TF-IDF shape:", X_tfidf.shape)
+# Feature Selection
+# Chi-Square Test
+from sklearn.feature_selection import SelectKBest, chi2
+
+chi2_selector = SelectKBest(chi2, k=2000)  # keep top 2000 features
+X_chi2 = chi2_selector.fit_transform(X_tfidf, y)
+
+print("Chi-Square reduced shape:", X_chi2.shape)
+"""
+4. Model Selection
+Research suitable algorithms for text classification:
+Logistic Regression
+Naive Bayes (MultinomialNB)
+Support Vector Machine (SVM)
+Random Forest / Gradient Boosting
+Deep learning models (LSTM, BiLSTM, Transformer-based models)
+"""
+# ===============================
+# IMPORTS
+# ===============================
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+# ===============================
+# LOAD DATA
+# ===============================
+df = pd.read_csv("https://raw.githubusercontent.com/ramizcihe/week4-cihe240058/refs/heads/main/cyberbullying_tweets.csv")  # Replace with your CSV path
+
+# ===============================
+# QUICK CHECK
+# ===============================
+print("Columns:", df.columns)
+print("First 5 rows:\n", df.head())
+print("Label distribution:\n", df['cyberbullying_type'].value_counts())
+
+# ===============================
+# BASIC CLEANING
+# ===============================
+# Remove duplicates
+df = df.drop_duplicates()
+
+# Remove rows with empty tweets
+df = df[df['tweet_text'].str.strip() != ""]
+
+# ===============================
+# FEATURE & LABEL
+# ===============================
+X = df['tweet_text']                  # Features
+y = df['cyberbullying_type']          # Target labels
+
+# ===============================
+# LABEL ENCODING
+# ===============================
+label_encoder = LabelEncoder()
+y_encoded = label_encoder.fit_transform(y)
+print("Classes:", label_encoder.classes_)
+
+# ===============================
+# TRAIN-TEST SPLIT
+# ===============================
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
+)
+
+# ===============================
+# TEXT VECTORIZATION
+# ===============================
+tfidf = TfidfVectorizer(
+    max_features=5000,      # limit to top 5000 words
+    stop_words='english'
+)
+X_train_tfidf = tfidf.fit_transform(X_train)
+X_test_tfidf = tfidf.transform(X_test)
+
+# ===============================
+# READY FOR MODELING
+# ===============================
+print("Shape of X_train:", X_train_tfidf.shape)
+print("Shape of X_test:", X_test_tfidf.shape)
+print("Shape of y_train:", y_train.shape)
+print("Shape of y_test:", y_test.shape)
+# ===============================
+# IMPORTS
+# ===============================
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, LSTM, Dense, Bidirectional
+from tensorflow.keras.utils import to_categorical
+
+# ===============================
+# LOAD DATA
+# ===============================
+df = pd.read_csv("https://raw.githubusercontent.com/ramizcihe/week4-cihe240058/refs/heads/main/cyberbullying_tweets.csv")  # Replace with your CSV path
+
+# ===============================
+# BASIC CLEANING
+# ===============================
+df = df.drop_duplicates()
+df = df[df['tweet_text'].str.strip() != ""]
+
+# ===============================
+# LABEL ENCODING
+# ===============================
+label_encoder = LabelEncoder()
+y = label_encoder.fit_transform(df['cyberbullying_type'])
+num_classes = len(label_encoder.classes_)
+y_categorical = to_categorical(y)  # For multi-class classification
+
+# ===============================
+# TRAIN-TEST SPLIT
+# ===============================
+X_train, X_test, y_train, y_test = train_test_split(
+    df['tweet_text'], y_categorical,
+    test_size=0.2,
+    random_state=42,
+    stratify=y
+)
+
+# ===============================
+# TOKENIZATION & PADDING
+# ===============================
+max_words = 10000     # Max number of words to keep in tokenizer
+max_len = 100         # Max length of sequences (padded)
+
+tokenizer = Tokenizer(num_words=max_words, oov_token="<OOV>")
+tokenizer.fit_on_texts(X_train)
+
+X_train_seq = tokenizer.texts_to_sequences(X_train)
+X_test_seq = tokenizer.texts_to_sequences(X_test)
+
+X_train_pad = pad_sequences(X_train_seq, maxlen=max_len, padding='post', truncating='post')
+X_test_pad = pad_sequences(X_test_seq, maxlen=max_len, padding='post', truncating='post')
+
+# ===============================
+# LSTM / BiLSTM MODEL
+# ===============================
+model = Sequential()
+model.add(Embedding(input_dim=max_words, output_dim=128, input_length=max_len))
+model.add(Bidirectional(LSTM(64, return_sequences=False)))
+model.add(Dense(num_classes, activation='softmax'))
+
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+model.summary()
+
+# ===============================
+# TRAINING
+# ===============================
+history = model.fit(
+    X_train_pad, y_train,
+    epochs=5,
+    batch_size=64,
+    validation_split=0.1
+)
+
+# ===============================
+# EVALUATION
+# ===============================
+loss, accuracy = model.evaluate(X_test_pad, y_test)
+print(f"Test Accuracy: {accuracy*100:.2f}%")
+print(df.columns)
+"""
+5. Dataset Splitting
+Split into training (70%), validation (15%), and test (15%) sets.
+Use stratified splitting to maintain class proportion.
+"""
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
+# Load your dataset
+df = pd.read_csv("https://raw.githubusercontent.com/ramizcihe/week4-cihe240058/refs/heads/main/cyberbullying_tweets.csv")  # replace with your file path
+
+# Features and target
+X = df['tweet_text']
+y = df['cyberbullying_type']
+
+# Step 1: Split into training (70%) and temp (30%)
+X_train, X_temp, y_train, y_temp = train_test_split(
+    X, y, test_size=0.3, stratify=y, random_state=42
+)
+
+# Step 2: Split temp into validation (15%) and test (15%)
+X_val, X_test, y_val, y_test = train_test_split(
+    X_temp, y_temp, test_size=0.5, stratify=y_temp, random_state=42
+)
+
+# Optional: check shapes
+print("Training set:", X_train.shape)
+print("Validation set:", X_val.shape)
+print("Test set:", X_test.shape)
+
+# Optional: check class distributions
+print("Training set class distribution:\n", y_train.value_counts(normalize=True))
+print("Validation set class distribution:\n", y_val.value_counts(normalize=True))
+print("Test set class distribution:\n", y_test.value_counts(normalize=True))
+"""
+6. Baseline Models
+Implement at least 3–4 baseline models for comparison, such as:
+Logistic Regression (TF-IDF features)
+Naive Bayes (TF-IDF features)
+SVM (TF-IDF features)
+LSTM or BERT (embedding-based)
+"""
+# TF-IDF + Classical Models
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report
+
+# TF-IDF vectorization
+tfidf = TfidfVectorizer(max_features=5000)
+X_train_tfidf = tfidf.fit_transform(X_train)
+X_val_tfidf = tfidf.transform(X_val)
+X_test_tfidf = tfidf.transform(X_test)
+
+# --- Logistic Regression ---
+lr = LogisticRegression(max_iter=1000)
+lr.fit(X_train_tfidf, y_train)
+y_pred_lr = lr.predict(X_test_tfidf)
+print("Logistic Regression:\n", classification_report(y_test, y_pred_lr))
+
+# --- Naive Bayes ---
+nb = MultinomialNB()
+nb.fit(X_train_tfidf, y_train)
+y_pred_nb = nb.predict(X_test_tfidf)
+print("Naive Bayes:\n", classification_report(y_test, y_pred_nb))
+
+# --- SVM ---
+svm = SVC(kernel='linear')
+svm.fit(X_train_tfidf, y_train)
+y_pred_svm = svm.predict(X_test_tfidf)
+print("SVM:\n", classification_report(y_test, y_pred_svm))
+# Deep Learning: LSTM with Embeddings
+import tensorflow as tf
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
+
+# Tokenize text
+tokenizer = Tokenizer(num_words=10000, oov_token="<OOV>")
+tokenizer.fit_on_texts(X_train)
+
+X_train_seq = tokenizer.texts_to_sequences(X_train)
+X_val_seq = tokenizer.texts_to_sequences(X_val)
+X_test_seq = tokenizer.texts_to_sequences(X_test)
+
+max_len = 100  # max tweet length
+X_train_pad = pad_sequences(X_train_seq, maxlen=max_len, padding='post')
+X_val_pad = pad_sequences(X_val_seq, maxlen=max_len, padding='post')
+X_test_pad = pad_sequences(X_test_seq, maxlen=max_len, padding='post')
+
+# LSTM model
+model = Sequential([
+    Embedding(input_dim=10000, output_dim=128, input_length=max_len),
+    LSTM(128, dropout=0.2, recurrent_dropout=0.2),
+    Dense(len(y.unique()), activation='softmax')  # multi-class
+])
+
+model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+model.summary()
+
+# Encode labels as integers
+from sklearn.preprocessing import LabelEncoder
+le = LabelEncoder()
+y_train_enc = le.fit_transform(y_train)
+y_val_enc = le.transform(y_val)
+y_test_enc = le.transform(y_test)
+
+# Train LSTM
+history = model.fit(
+    X_train_pad, y_train_enc,
+    validation_data=(X_val_pad, y_val_enc),
+    epochs=5, batch_size=32
+)
+
+# Evaluate
+test_loss, test_acc = model.evaluate(X_test_pad, y_test_enc)
+print("LSTM Test Accuracy:", test_acc)
+"""
+7. Evaluation Metrics
+Precision, Recall, and F1-score (important to catch cyberbullying without excessive false alarms).
+AUC-ROC.
+Confusion matrix analysis.
+"""
+# Step 1: Install Required Packages
+!pip install -q scikit-learn pandas numpy
+
+# Step 2: Import Required Libraries
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+
+# Step 3: Sample Dataset (Replace this with your real dataset)
+data = {
+    'text': [
+        'I hate you', 'You are awesome', 'Go kill yourself',
+        'Have a nice day', 'You are ugly', 'You look great today',
+        'I will hurt you', 'You are smart'
+    ],
+    'label': [1, 0, 1, 0, 1, 0, 1, 0]  # 1 = Cyberbullying, 0 = Non-cyberbullying
+}
+df = pd.DataFrame(data)
+
+# Step 4: Preprocessing and Vectorization
+X = df['text']
+y = df['label']
+
+vectorizer = TfidfVectorizer()
+X_vectorized = vectorizer.fit_transform(X)
+
+# Step 5: Train-Test Split
+X_train, X_test, y_train, y_test = train_test_split(X_vectorized, y, test_size=0.3, random_state=42)
+
+# Step 6: Train a Classifier
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# Step 7: Predictions
+y_pred = model.predict(X_test)
+y_proba = model.predict_proba(X_test)[:, 1]
+
+# Step 8: Classification Report (Precision, Recall, F1)
+print("Classification Report:")
+print(classification_report(y_test, y_pred, target_names=['Non-Cyberbullying', 'Cyberbullying']))
+
+# Step 9: Confusion Matrix
+cm = confusion_matrix(y_test, y_pred)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Non-Cyberbullying', 'Cyberbullying'])
+disp.plot(cmap=plt.cm.Blues)
+plt.title("Confusion Matrix")
+plt.show()
+
+# Step 10: AUC-ROC Score & Curve
+roc_auc = roc_auc_score(y_test, y_proba)
+fpr, tpr, thresholds = roc_curve(y_test, y_proba)
+
+print(f"AUC-ROC Score: {roc_auc:.4f}")
+
+plt.figure()
+plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.2f}")
+plt.plot([0, 1], [0, 1], linestyle='--')
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve")
+plt.legend()
+plt.grid()
+plt.show()
+"""
+8. Training & Evaluation
+Train baseline models on the training dataset.
+Evaluate on the validation dataset.
+Optimize hyperparameters (e.g., regularization, learning rate).
+"""
+# Step 1: Install Required Packages
+!pip install -q scikit-learn pandas numpy
+
+# Step 2: Import Libraries
+import pandas as pd
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report
+
+# Step 3: Sample Dataset (Replace this with your own)
+data = {
+    'text': [
+        'I hate you', 'You are awesome', 'Go kill yourself',
+        'Have a nice day', 'You are ugly', 'You look great today',
+        'I will hurt you', 'You are smart'
+    ],
+    'label': [1, 0, 1, 0, 1, 0, 1, 0]  # 1 = Cyberbullying, 0 = Non-cyberbullying
+}
+df = pd.DataFrame(data)
+# Step 4: Preprocessing and Vectorization
+X = df['text']
+y = df['label']
+
+vectorizer = TfidfVectorizer()
+X_vectorized = vectorizer.fit_transform(X)
+
+# Step 5: Train/Validation Split
+X_train, X_val, y_train, y_val = train_test_split(X_vectorized, y, test_size=0.3, random_state=42)
+
+# Step 6: Baseline Model Training (Logistic Regression)
+baseline_model = LogisticRegression()
+baseline_model.fit(X_train, y_train)
+
+# Step 7: Evaluation on Validation Set
+y_pred = baseline_model.predict(X_val)
+print("🔹 Baseline Logistic Regression Evaluation:")
+print(classification_report(y_val, y_pred, target_names=['Non-Cyberbullying', 'Cyberbullying']))
+
+# Step 8: Hyperparameter Tuning using GridSearchCV
+param_grid = {
+    'C': [0.01, 0.1, 1, 10],           # Regularization strength for Logistic Regression
+    'solver': ['liblinear']
+}
+
+grid_search = GridSearchCV(LogisticRegression(), param_grid, cv=3, scoring='f1', verbose=0)
+grid_search.fit(X_train, y_train)
+
+# Step 9: Best Model Evaluation
+best_model = grid_search.best_estimator_
+y_best_pred = best_model.predict(X_val)
+
+print("🔹 After Hyperparameter Tuning (Best Logistic Regression):")
+print("Best Params:", grid_search.best_params_)
+print(classification_report(y_val, y_best_pred, target_names=['Non-Cyberbullying', 'Cyberbullying']))
+
+# Optional: Try Another Baseline Model (e.g., Random Forest)
+rf_model = RandomForestClassifier(random_state=42)
+rf_model.fit(X_train, y_train)
+y_rf_pred = rf_model.predict(X_val)
+
+print("🔹 Baseline Random Forest Evaluation:")
+print(classification_report(y_val, y_rf_pred, target_names=['Non-Cyberbullying', 'Cyberbullying']))
+"""
+9. Model Comparison
+Compare performance across all models in a summary table.
+Identify the most effective model for cyberbullying detection.
+"""
+# Step 1: Install Required Packages
+!pip install -q scikit-learn pandas numpy
+
+# Step 2: Import Libraries
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.svm import SVC
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+
+# Step 3: Sample Dataset (Replace with your dataset)
+data = {
+    'text': [
+        'I hate you', 'You are awesome', 'Go kill yourself',
+        'Have a nice day', 'You are ugly', 'You look great today',
+        'I will hurt you', 'You are smart'
+    ],
+    'label': [1, 0, 1, 0, 1, 0, 1, 0]  # 1 = Cyberbullying, 0 = Non-cyberbullying
+}
+df = pd.DataFrame(data)
+
+# Step 4: Preprocessing and Vectorization
+X = df['text']
+y = df['label']
+
+vectorizer = TfidfVectorizer()
+X_vectorized = vectorizer.fit_transform(X)
+
+# Step 5: Train/Validation Split
+X_train, X_val, y_train, y_val = train_test_split(X_vectorized, y, test_size=0.3, random_state=42)
+
+# Step 6: Define Models
+models = {
+    'Logistic Regression': LogisticRegression(),
+    'Random Forest': RandomForestClassifier(random_state=42),
+    'Naive Bayes': MultinomialNB(),
+    'SVM': SVC(probability=True)  # enable probability for consistency
+}
+
+# Step 7: Train and Evaluate All Models
+results = []
+
+for model_name, model in models.items():
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_val)
+
+    precision = precision_score(y_val, y_pred)
+    recall = recall_score(y_val, y_pred)
+    f1 = f1_score(y_val, y_pred)
+    accuracy = accuracy_score(y_val, y_pred)
+
+    results.append({
+        'Model': model_name,
+        'Precision': round(precision, 2),
+        'Recall': round(recall, 2),
+        'F1-score': round(f1, 2),
+        'Accuracy': round(accuracy, 2)
+    })
+
+# Step 8: Summary Table
+results_df = pd.DataFrame(results)
+print("🔍 Model Comparison Summary:")
+print(results_df.sort_values(by='F1-score', ascending=False))
+"""
+10. Documentation
+Record:
+Preprocessing techniques applied
+Feature representation method used
+Model performance metrics and comparisons
+Justification for the final chosen model
+"""
+# Step 1: Create a Documentation Dictionary
+documentation = {
+    "Preprocessing Techniques": [
+        "Lowercasing text",
+        "TF-IDF vectorization (no stopword removal, no stemming/lemmatization)",
+        "Train/validation split (70/30)"
+    ],
+
+    "Feature Representation": "TF-IDF (Term Frequency-Inverse Document Frequency)",
+
+    "Model Evaluation Summary": results_df.to_dict(orient='records'),
+
+    "Final Model Selection": None  # Will populate below
+}
+
+# Step 2: Identify Best Model by F1-score
+best_model_row = results_df.sort_values(by='F1-score', ascending=False).iloc[0]
+best_model_name = best_model_row['Model']
+
+# Step 3: Justify Final Model Choice
+documentation["Final Model Selection"] = {
+    "Model": best_model_name,
+    "Justification": (
+        f"The '{best_model_name}' model was selected because it achieved the highest F1-score "
+        f"({best_model_row['F1-score']}) among all tested models, indicating a strong balance between "
+        f"precision ({best_model_row['Precision']}) and recall ({best_model_row['Recall']}). "
+        "This balance is essential for catching cyberbullying cases without excessive false positives."
+    )
+}
+
+# Step 4: Display Final Documentation
+import json
+print("📄 Final Documentation:\n")
+print(json.dumps(documentation, indent=2))
+from IPython.display import display, HTML
+
+display(HTML(f"""
+<div style="
+    border: 2px solid #4CAF50;
+    background-color: #f0fff0;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    font-size: 18px;
+    color: #000;
+    border-radius: 10px;
+    box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+    text-align: left;
+">
+  <h2 style="color:#2e7d32; font-weight: bold;"><b>🎓 STUDENT DETAILS</b></h2>
+  <p><b>NAME:</b> RAVLEEN KAUR</p>
+  <p><b>STUDENT ID:</b> CIHE240077</p>
+  <p><b>PROFESSOR:</b> DR. MD ASHRAF UDDIN</p>
+</div>
+"""))
